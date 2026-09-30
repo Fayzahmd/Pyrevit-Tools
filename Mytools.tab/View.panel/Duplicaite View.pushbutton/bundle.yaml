@@ -1,0 +1,9 @@
+components:
+  - type: "pushbutton"
+    engine: "ironpython"
+    script: "script.py"
+    title: "Duplicate Views"
+    tooltip: "Duplicate a parent view and all its dependent views"
+    icon: "icon.png"
+    context: "all"
+    author: "Your Name"

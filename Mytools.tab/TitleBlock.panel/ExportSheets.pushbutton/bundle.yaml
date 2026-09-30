@@ -1,0 +1,4 @@
+title: Export Sheets
+tooltip: >
+  Export selected sheets and their title block parameters to Excel.
+  Pick sheets → pick parameters → save .xlsx file.

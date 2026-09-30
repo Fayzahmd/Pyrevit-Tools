@@ -1,0 +1,5 @@
+title: Edit Parameters
+tooltip: >
+  Extract title block parameters into an editable grid and update them live
+  inside Revit — no Excel needed. Supports bulk-fill, instance + type
+  parameters, and a diff/preview before a single batched write.

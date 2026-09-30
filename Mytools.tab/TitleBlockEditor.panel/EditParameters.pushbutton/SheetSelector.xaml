@@ -1,0 +1,64 @@
+<Window
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Select Sheets to Edit"
+    Height="620" Width="860"
+    WindowStartupLocation="CenterScreen"
+    ShowInTaskbar="False">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   Text="Tick the sheets you want to edit. Columns are sortable — click a header."
+                   FontSize="12" Margin="0,0,0,8" TextWrapping="Wrap"/>
+
+        <TextBox Grid.Row="1" x:Name="search_tb"
+                 Height="26" Margin="0,0,0,8"
+                 VerticalContentAlignment="Center"
+                 TextChanged="search_changed"/>
+
+        <DataGrid Grid.Row="2" x:Name="grid"
+                  AutoGenerateColumns="False"
+                  CanUserAddRows="False" CanUserDeleteRows="False"
+                  HeadersVisibility="Column" GridLinesVisibility="All"
+                  RowHeight="24" IsReadOnly="False" SelectionMode="Single"
+                  AlternatingRowBackground="#F4F7FB"
+                  BorderBrush="#BFBFBF" BorderThickness="1">
+            <DataGrid.Columns>
+                <DataGridTemplateColumn Header="✓" Width="42" CanUserSort="False">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Header="Sheet Number" Binding="{Binding Number}"
+                                    Width="130" IsReadOnly="True"/>
+                <DataGridTextColumn Header="Sheet Name" Binding="{Binding Name}"
+                                    Width="*" IsReadOnly="True"/>
+                <DataGridTextColumn Header="Rev" Binding="{Binding Rev}"
+                                    Width="60" IsReadOnly="True"/>
+                <DataGridTextColumn Header="Title Block" Binding="{Binding TitleBlock}"
+                                    Width="240" IsReadOnly="True"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal"
+                    HorizontalAlignment="Right" Margin="0,10,0,0">
+            <TextBlock x:Name="count_tb" Text="" VerticalAlignment="Center"
+                       Margin="0,0,16,0" Foreground="#555"/>
+            <Button x:Name="all_b"  Content="Select All" Width="90" Height="28"
+                    Margin="0,0,6,0" Click="select_all"/>
+            <Button x:Name="none_b" Content="Clear" Width="90" Height="28"
+                    Margin="0,0,6,0" Click="clear_all"/>
+            <Button x:Name="ok_b"   Content="Next: Choose Parameters" Width="180" Height="28"
+                    IsDefault="True" Click="confirm"/>
+        </StackPanel>
+    </Grid>
+</Window>

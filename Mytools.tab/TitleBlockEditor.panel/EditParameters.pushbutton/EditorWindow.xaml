@@ -1,0 +1,74 @@
+<Window
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Title Block Parameter Editor"
+    Height="720" Width="1080"
+    WindowStartupLocation="CenterScreen"
+    ShowInTaskbar="False">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Info line -->
+        <TextBlock Grid.Row="0" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,8"
+                   Text="Grey columns are read-only keys. Number columns show project display units (unit shown in the header). Nothing is written until you click Apply."/>
+
+        <!-- Bulk-fill bar (acts on the Sheets grid) -->
+        <Border Grid.Row="1" Background="#EEF3FA" BorderBrush="#C7D6EA" BorderThickness="1"
+                CornerRadius="3" Padding="8" Margin="0,0,0,8">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="Bulk fill (Sheets) —  column:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                <ComboBox x:Name="col_combo" Width="190" Height="26" VerticalContentAlignment="Center"/>
+                <TextBlock Text="value:" VerticalAlignment="Center" Margin="12,0,6,0"/>
+                <TextBox x:Name="fill_value" Width="200" Height="26" VerticalContentAlignment="Center"/>
+                <Button x:Name="fill_sel_b" Content="Fill Selected Rows" Width="140" Height="26"
+                        Margin="10,0,6,0" Click="fill_selected"/>
+                <Button x:Name="fill_all_b" Content="Fill All Rows" Width="110" Height="26"
+                        Click="fill_all"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Sheets / instance-parameter grid -->
+        <TextBlock Grid.Row="2" Text="Sheets — instance parameters" FontWeight="Bold"
+                   Margin="0,0,0,4"/>
+        <DataGrid Grid.Row="3" x:Name="grid"
+                  AutoGenerateColumns="True"
+                  AutoGeneratingColumn="on_auto_col"
+                  CanUserAddRows="False" CanUserDeleteRows="False"
+                  HeadersVisibility="Column" GridLinesVisibility="All"
+                  RowHeight="24" SelectionMode="Extended" SelectionUnit="FullRow"
+                  AlternatingRowBackground="#F4F7FB"
+                  BorderBrush="#BFBFBF" BorderThickness="1"/>
+
+        <!-- Types / type-parameter grid -->
+        <TextBlock Grid.Row="4" Text="Title block types — type parameters (each edit affects ALL sheets using that type)"
+                   FontWeight="Bold" Foreground="#8A4B00" Margin="0,10,0,4"/>
+        <DataGrid Grid.Row="5" x:Name="type_grid"
+                  AutoGenerateColumns="True"
+                  AutoGeneratingColumn="on_auto_col"
+                  CanUserAddRows="False" CanUserDeleteRows="False"
+                  HeadersVisibility="Column" GridLinesVisibility="All"
+                  RowHeight="24" SelectionUnit="FullRow"
+                  MaxHeight="170"
+                  AlternatingRowBackground="#FCF3E8"
+                  BorderBrush="#D8B98C" BorderThickness="1"/>
+
+        <!-- Bottom buttons -->
+        <StackPanel Grid.Row="6" Orientation="Horizontal"
+                    HorizontalAlignment="Right" Margin="0,10,0,0">
+            <TextBlock x:Name="status_tb" Text="" VerticalAlignment="Center"
+                       Margin="0,0,16,0" Foreground="#555"/>
+            <Button x:Name="apply_b"  Content="Apply Changes…" Width="150" Height="30"
+                    IsDefault="True" Click="apply"/>
+            <Button x:Name="cancel_b" Content="Cancel" Width="90" Height="30"
+                    Margin="6,0,0,0" IsCancel="True" Click="cancel_win"/>
+        </StackPanel>
+    </Grid>
+</Window>

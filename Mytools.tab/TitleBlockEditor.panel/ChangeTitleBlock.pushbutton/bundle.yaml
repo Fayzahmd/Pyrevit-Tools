@@ -1,0 +1,7 @@
+title: Change Title Block
+tooltip: >
+  Show every sheet (or just the ones selected in the Project Browser) in an
+  editable table and swap the title block type per sheet from a dropdown.
+  All changes are written in one transaction, so it is a single undo step.
+  Sheets with no title block, or with more than one, are flagged and skipped.
+author: Mytools

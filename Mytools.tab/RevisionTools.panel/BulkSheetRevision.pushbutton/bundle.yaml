@@ -1,0 +1,8 @@
+title: Bulk Sheet Revision
+tooltip: >
+  Change the revision of many sheets at once. Shows every sheet in a grid
+  with its current revision (from the revision clouds on the sheet), lets you
+  pick a new revision per sheet or for all checked sheets, then moves every
+  revision cloud on those sheets to the new revision in one undoable step.
+  Cloud shapes are kept; sheets without clouds are skipped and reported.
+author: Fayaz

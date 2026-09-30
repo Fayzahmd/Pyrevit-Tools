@@ -1,0 +1,4 @@
+title: Import Sheets
+tooltip: >
+  Read an exported Excel file and update title block parameters in the model.
+  Shows a diff/preview of all changes before writing anything.

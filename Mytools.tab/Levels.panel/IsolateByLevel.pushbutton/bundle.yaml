@@ -1,0 +1,4 @@
+title: Isolate by Level
+tooltip: >
+  Pick a level from a list. Isolates every element whose base level matches
+  the picked level, plus the level datum itself, in the active view.
