@@ -1,0 +1,6 @@
+title: Isolate by Parameter
+tooltip: >
+  One window: tick categories, pick a parameter (instance or type), a
+  condition and a value.
+  Isolates every element in the active view that meets the condition.
+  Numbers are compared in project display units; text is case-insensitive.
