@@ -16,8 +16,15 @@ from Autodesk.Revit.DB import (
     FilteredElementCollector,
     ElementId,
     ElementLevelFilter,
+    ElementParameterFilter,
+    ElementMulticategoryFilter,
+    LogicalAndFilter,
+    ParameterFilterRuleFactory,
+    BuiltInParameter,
+    BuiltInCategory,
     Transaction,
     Level,
+    Wall,
 )
 from pyrevit import forms, script
 from System.Collections.Generic import List
@@ -58,22 +65,64 @@ picked = forms.SelectFromList.show(
 if not picked:
     script.exit()
 
-target_level = picked.item
+# SelectFromList unwraps TemplateListItem and returns the Level itself
+target_level = getattr(picked, 'item', picked)
 target_id = target_level.Id
 
 # ── 2. Find every element on that level — done NATIVELY by Revit, not by
-# looping through elements in Python. ElementLevelFilter queries the
-# document's own level index directly, so it stays fast no matter how big
-# the model is (this is what was making the tool hang before — a manual
-# Python loop checking parameters on every element one at a time).
-level_filter = ElementLevelFilter(target_id)
+# looping through elements in Python, so it stays fast on big models.
+#
+# Walls and columns are matched by their Base Constraint / Base Level
+# parameter instead of Element.LevelId: columns frequently report an invalid
+# LevelId, so ElementLevelFilter alone misses them.
+def base_level_filter(bip):
+    rule = ParameterFilterRuleFactory.CreateEqualsRule(ElementId(bip), target_id)
+    return ElementParameterFilter(rule)
 
-matched_elements = FilteredElementCollector(doc)\
-    .WherePasses(level_filter)\
-    .WhereElementIsNotElementType()\
-    .ToElements()
+column_cats = List[BuiltInCategory]([
+    BuiltInCategory.OST_Columns,
+    BuiltInCategory.OST_StructuralColumns,
+])
+column_cat_filter = ElementMulticategoryFilter(column_cats)
 
-matched_ids = [e.Id for e in matched_elements]
+# categories decided by their own level parameter, not Element.LevelId
+special_cats = List[BuiltInCategory]([
+    BuiltInCategory.OST_Columns,
+    BuiltInCategory.OST_StructuralColumns,
+    BuiltInCategory.OST_StructuralFraming,
+])
+
+# walls: Base Constraint
+walls = (FilteredElementCollector(doc)
+         .OfClass(Wall)
+         .WherePasses(base_level_filter(BuiltInParameter.WALL_BASE_CONSTRAINT))
+         .ToElementIds())
+
+# architectural + structural columns: Base Level
+columns = (FilteredElementCollector(doc)
+           .WherePasses(LogicalAndFilter(
+               column_cat_filter,
+               base_level_filter(BuiltInParameter.FAMILY_BASE_LEVEL_PARAM)))
+           .WhereElementIsNotElementType()
+           .ToElementIds())
+
+# beams / structural framing: Reference Level
+beams = (FilteredElementCollector(doc)
+         .OfCategory(BuiltInCategory.OST_StructuralFraming)
+         .WherePasses(base_level_filter(BuiltInParameter.INSTANCE_REFERENCE_LEVEL_PARAM))
+         .WhereElementIsNotElementType()
+         .ToElementIds())
+
+# everything else: element's own level. Walls, columns and beams are excluded
+# here so only their own level-parameter rules above decide them.
+others = (FilteredElementCollector(doc)
+          .WherePasses(ElementLevelFilter(target_id))
+          .WherePasses(ElementMulticategoryFilter(special_cats, True))
+          .WhereElementIsNotElementType()
+          .ToElements())
+
+matched_ids = list(walls) + list(columns) + list(beams)
+matched_ids += [e.Id for e in others if not isinstance(e, Wall)]
 
 # always include the level itself
 matched_ids.append(target_id)
@@ -88,15 +137,18 @@ if len(matched_ids) <= 1:
 id_list = List[ElementId](matched_ids)
 
 t = Transaction(doc, 'Isolate Elements by Level')
-t.Start()
 try:
+    t.Start()
     active_view.IsolateElementsTemporary(id_list)
     t.Commit()
 except Exception as e:
-    t.RollbackToSavepoint()
+    if t.HasStarted():
+        t.RollBack()
     forms.alert('Could not isolate elements in this view: {}'.format(e), exitscript=True)
 
 output.print_md(
     '**Done.** Isolated **{}** element(s) on level **"{}"** '
-    '(including the level itself).'.format(len(matched_ids) - 1, target_level.Name)
+    '(including the level itself) - {} wall(s), {} column(s), {} beam(s) '
+    'by base / reference level.'.format(len(matched_ids) - 1, target_level.Name,
+                                        len(walls), len(columns), len(beams))
 )
