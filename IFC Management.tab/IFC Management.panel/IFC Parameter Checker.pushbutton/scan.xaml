@@ -1,0 +1,87 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="IFC Parameter Checker"
+        Width="470" Height="620" MinWidth="400" MinHeight="520"
+        WindowStartupLocation="CenterScreen"
+        ShowInTaskbar="False" ResizeMode="CanResizeWithGrip">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" TextWrapping="Wrap" Margin="0,0,0,10"
+                   Text="Read-only audit of Export to IFC, Export to IFC As and IFC Predefined Type on the structural elements of this model. Nothing is modified unless you ask for the 3D view at the bottom."/>
+
+        <!-- 1. Scope -->
+        <TextBlock Grid.Row="1" Text="1. What to scan" FontWeight="Bold"
+                   Margin="0,0,0,4"/>
+        <StackPanel Grid.Row="2" Margin="6,0,0,10">
+            <RadioButton x:Name="scope_model" GroupName="scope"
+                         Content="All supported structural elements in the model"
+                         IsChecked="True" Margin="0,2,0,2"/>
+            <RadioButton x:Name="scope_selection" GroupName="scope"
+                         Content="Current selection" Margin="0,2,0,2"/>
+            <TextBlock x:Name="selection_note" Margin="20,0,0,0"
+                       Foreground="#FF666666" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <!-- 2. Categories -->
+        <DockPanel Grid.Row="3" LastChildFill="True">
+            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Content="All" Width="44" Margin="0,0,4,0"
+                            Click="select_all_click"/>
+                    <Button Content="None" Width="44" Click="select_none_click"/>
+                </StackPanel>
+                <TextBlock Text="2. Structural categories" FontWeight="Bold"
+                           VerticalAlignment="Center"/>
+            </DockPanel>
+            <Border BorderBrush="#FFABADB3" BorderThickness="1">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel x:Name="category_panel" Margin="6,4"/>
+                </ScrollViewer>
+            </Border>
+        </DockPanel>
+
+        <!-- 3. Options -->
+        <StackPanel Grid.Row="4" Margin="0,10,0,0">
+            <TextBlock Text="3. Options" FontWeight="Bold" Margin="0,0,0,4"/>
+            <CheckBox x:Name="include_type_level" IsChecked="True"
+                      Margin="6,2,0,2"
+                      Content="Include type-level parameter checks"/>
+            <TextBlock Margin="26,0,0,6" Foreground="#FF666666"
+                       TextWrapping="Wrap"
+                       Text="A value held on the element type is a legitimate source. Switch this off and a parameter that is only on the type is reported as unverified rather than missing."/>
+            <CheckBox x:Name="create_view" IsChecked="False" Margin="6,2,0,2"
+                      Content="Create colour-coded 3D view of IFC parameter issues"
+                      Checked="create_view_toggled"
+                      Unchecked="create_view_toggled"/>
+            <TextBlock Margin="26,0,0,4" Foreground="#FF666666"
+                       TextWrapping="Wrap"
+                       Text="Off by default. When ticked you are asked to confirm after the audit, and only then is a new 3D view added. Existing views are never changed."/>
+            <CheckBox x:Name="only_issues" IsChecked="False" IsEnabled="False"
+                      Margin="26,2,0,2"
+                      Content="Show findings only - hide elements that passed"/>
+            <TextBlock Margin="46,0,0,0" Foreground="#FF666666"
+                       TextWrapping="Wrap"
+                       Text="Hides the compliant elements in the generated view only, by element, so just the problems remain. Nothing is deleted or changed and no other view is affected."/>
+        </StackPanel>
+
+        <TextBlock Grid.Row="5" x:Name="warning_note" Margin="0,8,0,0"
+                   Foreground="#FFB05000" TextWrapping="Wrap"/>
+
+        <StackPanel Grid.Row="6" Orientation="Horizontal"
+                    HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="Cancel" Width="90" Margin="0,0,8,0"
+                    Click="cancel_click"/>
+            <Button x:Name="scan_button" Content="Scan" Width="110"
+                    IsDefault="True" Click="scan_click"/>
+        </StackPanel>
+    </Grid>
+</Window>

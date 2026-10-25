@@ -1,0 +1,119 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="IFC Parameter Checker - results"
+        Width="1180" Height="760" MinWidth="820" MinHeight="560"
+        WindowStartupLocation="CenterScreen"
+        ShowInTaskbar="False" ResizeMode="CanResizeWithGrip">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Summary and legend -->
+        <Grid Grid.Row="0" Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <Border Grid.Column="0" BorderBrush="#FFABADB3" BorderThickness="1"
+                    Padding="8" Margin="0,0,8,0">
+                <StackPanel>
+                    <TextBlock Text="Summary" FontWeight="Bold"
+                               Margin="0,0,0,4"/>
+                    <TextBlock x:Name="summary_text" FontFamily="Consolas"
+                               TextWrapping="NoWrap"/>
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="1" BorderBrush="#FFABADB3" BorderThickness="1"
+                    Padding="8" MinWidth="330">
+                <StackPanel>
+                    <TextBlock Text="Colour key" FontWeight="Bold"
+                               Margin="0,0,0,4"/>
+                    <StackPanel x:Name="legend_panel"/>
+                    <TextBlock Margin="0,6,0,0" Foreground="#FF666666"
+                               TextWrapping="Wrap" MaxWidth="320"
+                               Text="An element with several issues takes the colour of its most severe one."/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Filters -->
+        <DockPanel Grid.Row="1" Margin="0,0,0,6">
+            <TextBlock Text="Filter" FontWeight="Bold" VerticalAlignment="Center"
+                       Margin="0,0,8,0"/>
+            <TextBlock Text="Status" VerticalAlignment="Center"
+                       Margin="0,0,4,0"/>
+            <ComboBox x:Name="status_filter" Width="200"
+                      SelectionChanged="filter_changed" Margin="0,0,12,0"/>
+            <TextBlock Text="Parameter" VerticalAlignment="Center"
+                       Margin="0,0,4,0"/>
+            <ComboBox x:Name="param_filter" Width="170"
+                      SelectionChanged="filter_changed" Margin="0,0,12,0"/>
+            <TextBlock Text="Category" VerticalAlignment="Center"
+                       Margin="0,0,4,0"/>
+            <ComboBox x:Name="category_filter" Width="190"
+                      SelectionChanged="filter_changed" Margin="0,0,12,0"/>
+            <TextBlock x:Name="row_count" VerticalAlignment="Center"
+                       Foreground="#FF666666"/>
+        </DockPanel>
+
+        <!-- Results -->
+        <DataGrid Grid.Row="2" x:Name="results_grid" AutoGenerateColumns="False"
+                  IsReadOnly="True" CanUserSortColumns="True"
+                  GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                  SelectionMode="Single" RowHeaderWidth="0"
+                  AlternatingRowBackground="#FFF6F6F6"
+                  MouseDoubleClick="grid_double_click">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Element Id" Width="80"
+                                    Binding="{Binding element_id}"/>
+                <DataGridTextColumn Header="Category" Width="120"
+                                    Binding="{Binding category}"/>
+                <DataGridTextColumn Header="Family" Width="130"
+                                    Binding="{Binding family}"/>
+                <DataGridTextColumn Header="Type" Width="130"
+                                    Binding="{Binding type_name}"/>
+                <DataGridTextColumn Header="Parameter" Width="130"
+                                    Binding="{Binding param_name}"/>
+                <DataGridTextColumn Header="Location" Width="75"
+                                    Binding="{Binding location}"/>
+                <DataGridTextColumn Header="Current value" Width="120"
+                                    Binding="{Binding value}"/>
+                <DataGridTextColumn Header="Audit status" Width="130"
+                                    Binding="{Binding status}"/>
+                <DataGridTextColumn Header="Read-only" Width="70"
+                                    Binding="{Binding read_only_text}"/>
+                <DataGridTextColumn Header="Reason" Width="320"
+                                    Binding="{Binding reason}"/>
+                <DataGridTextColumn Header="UniqueId" Width="230"
+                                    Binding="{Binding unique_id}"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <TextBlock Grid.Row="3" x:Name="notes_text" Margin="0,8,0,0"
+                   Foreground="#FFB05000" TextWrapping="Wrap"/>
+
+        <!-- Actions -->
+        <DockPanel Grid.Row="4" Margin="0,12,0,0">
+            <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                <Button Content="Select in Revit" Width="120" Margin="0,0,8,0"
+                        Click="select_click"/>
+                <Button Content="Show element" Width="110" Margin="0,0,8,0"
+                        Click="show_click"/>
+                <Button Content="Open in output window" Width="160"
+                        Click="output_click"/>
+            </StackPanel>
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
+                        HorizontalAlignment="Right">
+                <Button Content="Export CSV report..." Width="150"
+                        Margin="0,0,8,0" Click="export_click"/>
+                <Button Content="Close" Width="90" IsCancel="True"
+                        Click="close_click"/>
+            </StackPanel>
+        </DockPanel>
+    </Grid>
+</Window>

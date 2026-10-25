@@ -1,0 +1,9 @@
+title: IFC Parameter Checker
+tooltip: >
+  Read-only audit of the three IFC export parameters - Export to IFC,
+  Export to IFC As and IFC Predefined Type - on the structural elements
+  of this model.
+
+  Reports each parameter as populated, blank, missing, read-only, invalid,
+  type-level or unverifiable, exports a CSV, and can optionally build a
+  colour-coded 3D audit view. The audit itself never modifies the model.
