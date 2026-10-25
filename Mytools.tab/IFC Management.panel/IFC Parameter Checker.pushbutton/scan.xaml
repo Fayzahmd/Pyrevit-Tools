@@ -68,9 +68,15 @@
             <CheckBox x:Name="only_issues" IsChecked="False" IsEnabled="False"
                       Margin="26,2,0,2"
                       Content="Show findings only - hide elements that passed"/>
+            <TextBlock Margin="46,0,0,4" Foreground="#FF666666"
+                       TextWrapping="Wrap"
+                       Text="Hides the compliant elements in the generated view only, so just the problems remain. Nothing is deleted or changed and no other view is affected."/>
+            <CheckBox x:Name="use_filters" IsChecked="True" IsEnabled="False"
+                      Margin="26,2,0,2"
+                      Content="Drive the view with Revit view filters (stays up to date)"/>
             <TextBlock Margin="46,0,0,0" Foreground="#FF666666"
                        TextWrapping="Wrap"
-                       Text="Hides the compliant elements in the generated view only, by element, so just the problems remain. Nothing is deleted or changed and no other view is affected."/>
+                       Text="Filters are re-evaluated by Revit, so an element drops out of the view as soon as you fill its IFC parameters in - no need to re-run the audit. Trade-off: a filter tests parameter values, so it cannot express an invalid value. Untick to freeze this audit's exact results as per-element overrides instead."/>
         </StackPanel>
 
         <TextBlock Grid.Row="5" x:Name="warning_note" Margin="0,8,0,0"

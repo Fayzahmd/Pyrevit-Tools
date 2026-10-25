@@ -17,24 +17,26 @@ is confirmed separately, and is confined to a view the tool creates itself.
 
 ## Installation
 
-The tool ships as a pushbutton inside the `Mytool` extension, which is already
-registered with pyRevit:
+The tool is a pushbutton in the **IFC Management** panel of the **Mytools**
+tab, inside the `Mytool` extension:
 
 ```
 Mytool.extension/
-└── IFC Management.tab/
+└── Mytools.tab/
     └── IFC Management.panel/
         └── IFC Parameter Checker.pushbutton/
             ├── script.py          entry point, both windows
             ├── scan.xaml          scan options window
             ├── results.xaml       results window
-            ├── ifc_config.py      colours, categories, view names
+            ├── ifc_config.py      colours, categories, view and filter names
             ├── ifc_params.py      parameter discovery and safe reading
             ├── ifc_validate.py    IFC entity / predefined type validation
             ├── ifc_collect.py     element collection and structural filters
             ├── ifc_audit.py       the audit engine
             ├── ifc_report.py      CSV writer
+            ├── ifc_filters.py     view filters for the live audit view
             ├── ifc_visualize.py   optional 3D audit view
+            ├── icon.png
             ├── bundle.yaml
             └── README.md
 ```
@@ -42,16 +44,18 @@ Mytool.extension/
 To load it:
 
 1. In Revit, go to the **pyRevit** tab and click **Reload**.
-2. A new **IFC Management** tab appears with an **IFC Parameter Checker**
-   button.
+2. The **Mytools** tab gains an **IFC Management** panel holding the
+   **IFC Parameter Checker** button.
 
-If the tab does not appear, confirm the extensions folder is registered:
+If the panel does not appear, confirm the extensions folder is registered:
 pyRevit tab → Settings → Custom Extension Directories should include
 `%APPDATA%\pyRevit\Extensions`.
 
-To install it as a standalone extension instead, copy the `IFC Management.tab`
-folder into a new folder called `IFCTools.extension` in the same extensions
-directory. No code changes are needed - the modules only import each other.
+To split it out as a standalone extension instead, copy the
+`IFC Management.panel` folder into
+`IFCTools.extension/IFC Management.tab/` in the same extensions directory. No
+code changes are needed - the modules only import each other, and `script.py`
+puts its own folder on `sys.path`.
 
 ---
 
@@ -195,6 +199,61 @@ in the order above - so an element missing `IFC Predefined Type` *and* holding
 a blank `Export to IFC As` is red, not orange. The per-parameter detail stays
 in the table and the CSV.
 
+### Filter mode - a view that keeps itself up to date
+
+A sub-option under the visualisation tick box, **on by default**: *Drive the
+view with Revit view filters*.
+
+A per-element override is a photograph. It records what the audit found, and
+is wrong the moment somebody fills a parameter in. A view filter is a rule
+Revit re-evaluates continuously, so **an element leaves the view as soon as
+its IFC parameters are set** - no re-running the audit, no stale colours. That
+makes the view usable as a live worklist: fix elements and watch them vanish.
+
+Four filters are created, applied in this order so the most specific wins:
+
+| Filter | Rule | Effect |
+|---|---|---|
+| `IFC Audit - IFC parameters complete` | both params set | hidden (this is what removes a fixed element) |
+| `IFC Audit - Predefined Type set but no entity` | predefined type set, entity not | yellow |
+| `IFC Audit - Export to IFC As not set` | entity not set | orange |
+| `IFC Audit - IFC Predefined Type not set` | predefined type not set | orange |
+
+With *show findings only* off, the "complete" filter turns green instead of
+hiding, so you get a live colour-coded model rather than a worklist.
+
+**What filter mode cannot do.** A filter is a rule over parameter *values*, so
+it expresses presence exactly and cannot express validity. An element set to
+`IfcColumn` + `SHEAR` has both parameters populated, so the filters count it
+as complete and it does **not** appear in the view. Expressing that would need
+a not-equals rule for every member of every per-entity enumeration - roughly
+twenty filters of ten rules each, regenerated whenever Revit's enums change.
+You are warned with a count at view-creation time when the audit found invalid
+or unverifiable elements, and the results table and CSV remain the
+authoritative record. Untick filter mode to get the audit's exact findings
+frozen as per-element overrides instead.
+
+Two Revit behaviours the rules have to work around, both measured rather than
+assumed - see `ifc_filters.py` for the figures:
+
+- **A rule on a type parameter does not evaluate against an instance.** It
+  returns False for `HasValue` *and* False for `HasNoValue`. So the rules test
+  instance parameters only, and the elements whose value legitimately lives on
+  the type are settled directly from the audit's own knowledge - hidden, or
+  coloured as passing - rather than being left looking like findings.
+- **There are two kinds of blank.** A parameter never set reports
+  `HasNoValue`; one set and then cleared reports `HasValue` with
+  `Equals('')`. Each presence test covers both, or the view would silently
+  miss every parameter someone typed into and then emptied.
+
+**Scope.** A view filter is a project-wide element, so the new filters appear
+in the filter list of every view, even though they are only *applied* to the
+view this tool creates. Revit has no view-local filter; this is unavoidable.
+Any existing filter of the same name is never modified - a uniquely named one
+is created instead. Rebuilding an audit view removes only filters carrying the
+`IFC Audit - ` prefix from that view, and leaves the filter elements in the
+project where other views may use them.
+
 ### Show findings only
 
 A sub-option under the visualisation tick box: **Show findings only - hide
@@ -264,6 +323,8 @@ Everything tunable is in `ifc_config.py`:
 - `OVERALL_COLORS` - the five RGB colours
 - `OVERALL_PRIORITY` - the severity order used for colouring
 - `VIEW_NAME_BASE`, `LEGEND_VIEW_NAME`, `CREATE_LEGEND_VIEW`
+- `USE_VIEW_FILTERS_DEFAULT` - default state of the filter-mode tick box
+- `FILTER_NAME_PREFIX` - prefix for the created filters
 - `VIEW_DETAIL_LEVEL`, `VIEW_TRANSPARENCY`, `HIDE_UNRELATED_CATEGORIES`
 - `COLOR_PASSING_ELEMENTS` - leave passing elements with normal graphics
 - `SHOW_ONLY_ISSUES_DEFAULT` - default state of the findings-only tick box

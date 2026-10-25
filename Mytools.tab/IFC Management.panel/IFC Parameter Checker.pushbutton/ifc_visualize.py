@@ -34,6 +34,7 @@ from System.Collections.Generic import List
 import ifc_audit
 import ifc_collect
 import ifc_config as cfg
+import ifc_filters
 
 # Plain-language colour names for the legend text.
 COLOR_NAMES = {
@@ -305,6 +306,172 @@ def _clear_view_overrides(doc, view, audit_result, notes):
                  'in that view only.'.format(cleared, unhidden))
 
 
+def _apply_filters(doc, view, audit_result, notes, only_issues):
+    """Drive the view with Revit view filters instead of element overrides.
+
+    The filters are re-evaluated by Revit, so an element leaves the view the
+    moment its IFC parameters are filled in - no re-run of the audit.
+    """
+    category_ids = list(_audited_categories(audit_result).values())
+    created = ifc_filters.create_filters(doc, category_ids, notes)
+    if not created:
+        notes.append('No view filters could be created, so this view carries '
+                     'no audit graphics. Re-run with filter mode off to get '
+                     'per-element overrides instead.')
+        return []
+
+    solid_fill_id = _solid_fill_pattern_id(doc)
+    applied = 0
+    for entry in created:
+        spec = entry['spec']
+        filter_id = entry['element'].Id
+
+        # The "complete" filter is what makes a fixed element disappear. When
+        # passing elements should stay visible it becomes a green override
+        # instead of a hide.
+        if spec['key'] == 'complete':
+            visible = not only_issues
+            status = None if only_issues else cfg.OV_OK
+        else:
+            visible = spec['visible']
+            status = spec['status']
+
+        try:
+            view.AddFilter(filter_id)
+        except Exception as exc:
+            notes.append('Filter "{}" could not be added to the view: '
+                         '{}'.format(entry['name'], exc))
+            continue
+
+        try:
+            if status is not None:
+                view.SetFilterOverrides(
+                    filter_id, _overrides_for(status, solid_fill_id))
+            view.SetFilterVisibility(filter_id, bool(visible))
+            applied += 1
+        except Exception as exc:
+            notes.append('Filter "{}" was added but could not be configured: '
+                         '{}'.format(entry['name'], exc))
+
+    notes.append('{} view filter(s) applied. The view updates itself: an '
+                 'element drops out as soon as its IFC parameters are '
+                 'set.'.format(applied))
+
+    _settle_type_level_elements(doc, view, audit_result, notes, only_issues,
+                                solid_fill_id)
+
+    if audit_result.with_invalid:
+        notes.append(
+            'LIMITATION - {} element(s) hold an invalid value. A filter is a '
+            'rule over parameter values and cannot express "invalid", so '
+            'those elements count as complete and do NOT appear in this '
+            'view. They are in the results table and the CSV.'.format(
+                audit_result.with_invalid))
+
+    if audit_result.with_missing:
+        notes.append(
+            'NOTE - {} element(s) have a parameter that is missing rather '
+            'than blank. A filter cannot tell the two apart, so they appear '
+            'in the same colour as blank ones here; the table and CSV keep '
+            'the distinction.'.format(audit_result.with_missing))
+
+    return created
+
+
+def _settle_type_level_elements(doc, view, audit_result, notes, only_issues,
+                                solid_fill_id):
+    """Deal with elements the filters cannot judge: value held on the type.
+
+    A filter rule on a type parameter does not evaluate against an instance
+    (see ifc_filters), so such an element matches neither the "complete"
+    filter nor the "not set" ones: it would sit in the view uncoloured,
+    looking like a finding when the audit says it is fine.
+
+    The audit already knows exactly which elements these are, so they are
+    settled directly - hidden when the view shows findings only, coloured as
+    passing otherwise. This part is static rather than live, which only
+    matters if someone later clears the value on the *type*; the instance's
+    own parameter is still covered by the filters.
+    """
+    compliant_by_type = []
+    for element_result in audit_result.elements:
+        if element_result.overall != cfg.OV_OK:
+            continue
+        if not element_result.used_type_level:
+            continue
+        try:
+            compliant_by_type.append(element_result.element.Id)
+        except Exception:
+            continue
+
+    if not compliant_by_type:
+        return
+
+    if only_issues:
+        batch = List[ElementId]()
+        for element_id in compliant_by_type:
+            batch.Add(element_id)
+        hidden = 0
+        try:
+            view.HideElements(batch)
+            hidden = batch.Count
+        except Exception:
+            for element_id in batch:
+                single = List[ElementId]()
+                single.Add(element_id)
+                try:
+                    view.HideElements(single)
+                    hidden += 1
+                except Exception:
+                    continue
+        notes.append('{} element(s) take their IFC values from their type. '
+                     'A filter cannot read a type parameter from an instance, '
+                     'so they are hidden directly instead of being left '
+                     'looking like findings.'.format(hidden))
+    else:
+        settings = _overrides_for(cfg.OV_OK, solid_fill_id)
+        coloured = 0
+        for element_id in compliant_by_type:
+            try:
+                view.SetElementOverrides(element_id, settings)
+                coloured += 1
+            except Exception:
+                continue
+        notes.append('{} element(s) take their IFC values from their type and '
+                     'are coloured as passing directly, since a filter cannot '
+                     'read a type parameter from an instance.'.format(coloured))
+
+
+def _remove_audit_filters(view, notes):
+    """Take this tool's own filters off a view before rebuilding it.
+
+    Only filters carrying the tool's prefix are touched, and they are removed
+    from this view - the filter elements themselves stay in the project, where
+    other views may legitimately use them.
+    """
+    removed = 0
+    try:
+        filter_ids = list(view.GetFilters())
+    except Exception as exc:
+        notes.append('Existing view filters could not be listed: {}'.format(
+            exc))
+        return
+    for filter_id in filter_ids:
+        try:
+            filter_element = view.Document.GetElement(filter_id)
+            if filter_element is None:
+                continue
+            if not filter_element.Name.startswith(cfg.FILTER_NAME_PREFIX):
+                continue
+            view.RemoveFilter(filter_id)
+            removed += 1
+        except Exception:
+            continue
+    if removed:
+        notes.append('{} audit filter(s) removed from this view before '
+                     'rebuilding it.'.format(removed))
+
+
 def _hide_passing_elements(doc, view, audit_result, notes):
     """Hide everything that is not a finding, in this view only.
 
@@ -354,7 +521,7 @@ def _hide_passing_elements(doc, view, audit_result, notes):
 
 
 def _create_legend_view(doc, audit_result, view_name, notes,
-                        only_issues=False):
+                        only_issues=False, created_filters=None):
     """A drafting view holding the colour key, as an accompanying legend.
 
     A drafting view is used rather than a Revit legend view because the API
@@ -410,8 +577,27 @@ def _create_legend_view(doc, audit_result, view_name, notes,
                      'above are hidden in it, so the view is not a complete '
                      'picture of the model.')
         lines.append('')
-    lines.append('Where an element has more than one issue it takes the '
-                 'colour of its most severe one, in the order above.')
+    if created_filters:
+        lines.append('This view is driven by Revit view filters, so it keeps '
+                     'itself up to date: an element leaves the view as soon '
+                     'as its IFC parameters are filled in. The counts in the '
+                     'CSV are from the scan time above.')
+        lines.append('')
+        lines.append('Filters applied:')
+        for line in ifc_filters.describe_filters(created_filters):
+            lines.append('  ' + line)
+        lines.append('')
+        lines.append('A filter tests parameter values, so it cannot express '
+                     'an INVALID value - an element set to a value the IFC '
+                     'schema rejects counts as complete here and does not '
+                     'appear. Check the CSV for those.')
+    else:
+        lines.append('Colours are per-element overrides recording the scan '
+                     'above. They do not change as parameters are fixed; '
+                     're-run the tool to refresh them.')
+        lines.append('')
+        lines.append('Where an element has more than one issue it takes the '
+                     'colour of its most severe one, in the order above.')
     lines.append('Per-parameter detail is in the CSV report, not in this view.')
 
     offset = 0.0
@@ -439,19 +625,25 @@ def issue_element_count(audit_result):
 
 
 def create_audit_view(doc, audit_result, view_name, reuse_view=None,
-                      include_passing=None, only_issues=False):
+                      include_passing=None, only_issues=False,
+                      use_filters=None):
     """Build the colour-coded audit view.
 
     reuse_view        an existing audit View3D to rebuild, or None to create
                       a new one
     include_passing   override cfg.COLOR_PASSING_ELEMENTS for this run
-    only_issues       hide the elements that passed the audit, so the view
-                      shows findings only
+    only_issues       show findings only, hiding what passed the audit
+    use_filters       drive the view with Revit view filters, so it keeps
+                      itself up to date as parameters are filled in, instead
+                      of freezing this audit's results into per-element
+                      overrides. Defaults to cfg.USE_VIEW_FILTERS_DEFAULT.
 
     Returns (view_or_None, notes). On failure the transaction is rolled back
     and the reason is in the notes; the audit results are never affected.
     """
     notes = []
+    filter_mode = cfg.USE_VIEW_FILTERS_DEFAULT if use_filters is None \
+        else bool(use_filters)
     color_passing = cfg.COLOR_PASSING_ELEMENTS if include_passing is None \
         else include_passing
     if only_issues:
@@ -480,6 +672,7 @@ def create_audit_view(doc, audit_result, view_name, reuse_view=None,
 
         if reuse_view is not None:
             view = reuse_view
+            _remove_audit_filters(view, notes)
             _clear_view_overrides(doc, view, audit_result, notes)
         else:
             view = View3D.CreateIsometric(doc, view_family_type.Id)
@@ -498,29 +691,38 @@ def create_audit_view(doc, audit_result, view_name, reuse_view=None,
                          'elements are coloured by line colour only, without '
                          'solid surfaces.')
 
-        coloured = 0
-        failed = 0
-        for overall, element_ids in grouped.items():
-            if overall == cfg.OV_OK and not color_passing:
-                continue
-            settings = _overrides_for(overall, solid_fill_id)
-            for element_id in element_ids:
-                try:
-                    view.SetElementOverrides(element_id, settings)
-                    coloured += 1
-                except Exception:
-                    failed += 1
+        created_filters = []
+        if filter_mode:
+            created_filters = _apply_filters(
+                doc, view, audit_result, notes, only_issues)
+        else:
+            coloured = 0
+            failed = 0
+            for overall, element_ids in grouped.items():
+                if overall == cfg.OV_OK and not color_passing:
+                    continue
+                settings = _overrides_for(overall, solid_fill_id)
+                for element_id in element_ids:
+                    try:
+                        view.SetElementOverrides(element_id, settings)
+                        coloured += 1
+                    except Exception:
+                        failed += 1
 
-        notes.append('{} element(s) coloured in this view.'.format(coloured))
-        if failed:
-            notes.append('{} element(s) would not take an override - usually '
-                         'elements that cannot be overridden individually, '
-                         'such as parts of a group or a link.'.format(failed))
-        if only_issues:
-            _hide_passing_elements(doc, view, audit_result, notes)
-        elif not color_passing:
-            notes.append('Elements that passed the audit were left with their '
-                         'normal graphics.')
+            notes.append('{} element(s) coloured in this view.'.format(
+                coloured))
+            if failed:
+                notes.append('{} element(s) would not take an override - '
+                             'usually elements that cannot be overridden '
+                             'individually, such as parts of a group or a '
+                             'link.'.format(failed))
+            notes.append('These are per-element overrides: they record this '
+                         'audit and do not change as parameters are fixed.')
+            if only_issues:
+                _hide_passing_elements(doc, view, audit_result, notes)
+            elif not color_passing:
+                notes.append('Elements that passed the audit were left with '
+                             'their normal graphics.')
 
         legend = None
         if cfg.CREATE_LEGEND_VIEW:
@@ -529,7 +731,8 @@ def create_audit_view(doc, audit_result, view_name, reuse_view=None,
             except Exception:
                 display_name = view_name
             legend = _create_legend_view(doc, audit_result, display_name,
-                                         notes, only_issues=only_issues)
+                                         notes, only_issues=only_issues,
+                                         created_filters=created_filters)
             if legend is not None:
                 try:
                     notes.append('Colour key written to drafting view '

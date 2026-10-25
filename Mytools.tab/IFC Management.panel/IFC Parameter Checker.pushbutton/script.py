@@ -96,14 +96,18 @@ class ScanWindow(forms.WPFWindow):
             self.scope_selection.IsEnabled = False
 
         self.only_issues.IsChecked = cfg.SHOW_ONLY_ISSUES_DEFAULT
+        self.use_filters.IsChecked = cfg.USE_VIEW_FILTERS_DEFAULT
         self.only_issues.IsEnabled = bool(self.create_view.IsChecked)
+        self.use_filters.IsEnabled = bool(self.create_view.IsChecked)
 
         self.warning_note.Text = '\n'.join(warnings) if warnings else ''
 
     # -- handlers ---------------------------------------------------------
     def create_view_toggled(self, sender, args):
-        """The findings-only option only means anything with a view to build."""
-        self.only_issues.IsEnabled = bool(self.create_view.IsChecked)
+        """The view sub-options only mean anything with a view to build."""
+        enabled = bool(self.create_view.IsChecked)
+        self.only_issues.IsEnabled = enabled
+        self.use_filters.IsEnabled = enabled
 
     def select_all_click(self, sender, args):
         for box in self._checkboxes:
@@ -129,6 +133,7 @@ class ScanWindow(forms.WPFWindow):
             'include_type_level': bool(self.include_type_level.IsChecked),
             'create_view': bool(self.create_view.IsChecked),
             'only_issues': bool(self.only_issues.IsChecked),
+            'use_filters': bool(self.use_filters.IsChecked),
         }
         self.Close()
 
@@ -330,8 +335,10 @@ def export_csv(audit_result):
 # ---------------------------------------------------------------------------
 # Optional visualisation
 # ---------------------------------------------------------------------------
-def run_visualisation(audit_result, only_issues=False):
+def run_visualisation(audit_result, only_issues=False, use_filters=None):
     """Confirm, resolve the view name, build the view. Never silent."""
+    filter_mode = cfg.USE_VIEW_FILTERS_DEFAULT if use_filters is None \
+        else bool(use_filters)
     issues = (audit_result.with_missing + audit_result.with_blank +
               audit_result.with_invalid + audit_result.needs_review)
     visible_count = ifc_visualize.issue_element_count(audit_result) \
@@ -339,26 +346,43 @@ def run_visualisation(audit_result, only_issues=False):
 
     include_passing = cfg.COLOR_PASSING_ELEMENTS
     if issues == 0:
-        if only_issues:
+        if only_issues and filter_mode:
+            # A filtered view is still worth having with nothing to show: it
+            # is a live monitor that will pick up the next regression.
+            answer = forms.alert(
+                'Every scanned element has all three IFC parameters present '
+                'and valid, so the view would be empty right now.\n\n'
+                'Because it is driven by filters it would not stay empty - '
+                'anything that loses its IFC parameters later shows up in it '
+                'on its own.',
+                title='IFC Parameter Checker',
+                options=['Create it as a live monitor', 'Skip the view'])
+            if answer != 'Create it as a live monitor':
+                return
+        elif only_issues:
             forms.alert(
                 'Every scanned element has all three IFC parameters present '
                 'and valid.\n\n'
-                'With "show findings only" ticked the view would be empty, so '
-                'none was created. The audit results and the CSV export are '
-                'unaffected.',
+                'With "show findings only" ticked and filters off, the view '
+                'would be empty and frozen that way, so none was created. '
+                'The audit results and the CSV export are unaffected.',
                 title='IFC Parameter Checker')
             return
-        answer = forms.alert(
-            'Every scanned element has all three IFC parameters present and '
-            'valid, so there is nothing to highlight.\n\n'
-            'A view would only show the model in green.',
-            title='IFC Parameter Checker',
-            options=['Create an all-compliant view anyway', 'Skip the view'])
-        if answer != 'Create an all-compliant view anyway':
-            return
-        include_passing = True
+        else:
+            answer = forms.alert(
+                'Every scanned element has all three IFC parameters present '
+                'and valid, so there is nothing to highlight.\n\n'
+                'A view would only show the model in green.',
+                title='IFC Parameter Checker',
+                options=['Create an all-compliant view anyway',
+                         'Skip the view'])
+            if answer != 'Create an all-compliant view anyway':
+                return
+            include_passing = True
 
-    if only_issues and visible_count == 0:
+    # A findings-only view with nothing in it is pointless - unless filters
+    # keep it live, which the user has just approved above.
+    if only_issues and visible_count == 0 and not filter_mode:
         forms.alert(
             'No element has one of the statuses configured to stay visible '
             '(ifc_config.VISIBLE_WHEN_ONLY_ISSUES), so a findings-only view '
@@ -375,12 +399,30 @@ def run_visualisation(audit_result, only_issues=False):
         scope_line = ('{} element(s) would be coloured by their audit '
                       'status.'.format(audit_result.total))
 
+    if filter_mode:
+        mode_line = (
+            'Driven by Revit view filters, so the view keeps itself up to '
+            'date - an element drops out as soon as its IFC parameters are '
+            'set.\n\n'
+            'Two things to know. View filters are project-wide elements, so '
+            'the new filters appear in the filter list of every view, though '
+            'they are only applied to this one; any filter of the same name '
+            'is left untouched. And a filter tests parameter values, so it '
+            'cannot express an invalid value{}.'.format(
+                ' - the {} element(s) with invalid values will NOT appear in '
+                'this view, only in the report'.format(
+                    audit_result.with_invalid)
+                if audit_result.with_invalid else ''))
+    else:
+        mode_line = ('Per-element overrides, so the view records this audit '
+                     'and will not change as parameters are fixed.')
+
     confirm = forms.alert(
         'Create a colour-coded 3D view of the audit?\n\n'
-        '{}\n\n'
+        '{}\n\n{}\n\n'
         'This adds a new 3D view{} to the model. Existing views, element '
         'parameters, geometry and linked models are not changed.'.format(
-            scope_line,
+            scope_line, mode_line,
             ' and a drafting view holding the colour key'
             if cfg.CREATE_LEGEND_VIEW else ''),
         title='IFC Parameter Checker',
@@ -423,7 +465,8 @@ def run_visualisation(audit_result, only_issues=False):
 
     view, notes = ifc_visualize.create_audit_view(
         doc, audit_result, view_name, reuse_view=reuse_view,
-        include_passing=include_passing, only_issues=only_issues)
+        include_passing=include_passing, only_issues=only_issues,
+        use_filters=filter_mode)
 
     for note in notes:
         print(note)
@@ -531,7 +574,8 @@ def main():
 
     if settings['create_view']:
         run_visualisation(audit_result,
-                          only_issues=settings.get('only_issues', False))
+                          only_issues=settings.get('only_issues', False),
+                          use_filters=settings.get('use_filters', None))
 
     results_window = ResultsWindow(os.path.join(_HERE, 'results.xaml'),
                                    audit_result)

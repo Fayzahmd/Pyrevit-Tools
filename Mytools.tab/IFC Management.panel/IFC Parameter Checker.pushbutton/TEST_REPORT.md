@@ -339,6 +339,98 @@ which is the pre-findings-only behaviour and matches
 against this session's 5,004 with 30; the category selection used in that run
 is not recorded, so the difference is not reconstructable from here.
 
+### 1.12 Filter mode
+
+Built and tested on the open model. Two real bugs were found and fixed by
+testing; neither would have been visible from reading the code.
+
+**Precondition.** All six IFC parameters are filterable:
+`GetFilterableParametersInCommon` over Walls, Structural Columns, Structural
+Framing, Structural Foundations and Floors returned 52 parameters including
+all six, so view filters on them are possible at all.
+
+**Bug 1 - type parameter rules never match.** Measured against element
+`7160765`, whose instance value is empty and whose type carries `IfcBeamType`:
+
+```
+IFC_EXPORT_ELEMENT_TYPE_AS   HasValue=False  HasNoValue=False
+IFC_EXPORT_ELEMENT_AS        HasValue=False  HasNoValue=True
+```
+
+The type parameter is not on the instance, so *neither* rule matches. The
+first implementation built "not set" as `instance HasNoValue AND type
+HasNoValue`, which is therefore False for every instance - those filters
+matched nothing at all, while the view looked perfectly well formed. Fixed by
+testing instance parameters only and settling type-level elements from the
+audit's own knowledge.
+
+**Bug 2 - two kinds of blank.** Measured on element `1117083`:
+
+```
+as found             AsString='IfcWall'  HasValue=True   HasNoValue=False  Equals('')=False
+after Set('')        AsString=''         HasValue=True   HasNoValue=False  Equals('')=True
+after Set(' ')       AsString=''         HasValue=True   HasNoValue=False  Equals('')=True
+never set (7160765)                      HasValue=False  HasNoValue=True
+```
+
+A parameter set and then cleared still reports `HasValue`, so `HasNoValue`
+alone misses it - precisely the parameter a QA view most needs to catch. Fixed
+by testing `HasNoValue OR Equals('')` for absence and `HasValue AND
+NotEquals('')` for presence. Revit normalises whitespace to `''`, which
+matches how `ifc_audit` treats it.
+
+**Live behaviour, proven.** One compliant element's parameters were changed
+inside a transaction that was then rolled back, so the model is unchanged.
+Visibility was read with a collector scoped to the view, which obeys view
+filters:
+
+```
+element 1117083, KEO_ST-CIP-Retaining RC Wall-RW -850
+start             ('IfcWall','USERDEFINED')  visible=False  [complete]
+clear entity                                 visible=True   [Export to IFC As not set,
+                                                              Predefined Type set but no entity]
+clear both                                   visible=True   [both "not set" filters]
+entity back only                             visible=True   [IFC Predefined Type not set]
+both fixed                                   visible=False  [complete]      <- leaves the view
+rollback          ('IfcWall','USERDEFINED')  visible=False
+```
+
+That is the behaviour requested: the element leaves the view the moment both
+parameters are set, with no re-run of the audit. Note the third row - with the
+predefined type still set and the entity cleared, it correctly picks up the
+yellow "set but no entity" filter too.
+
+**Other checks.** `audited elements wrongly visible: 0`. Element `7160765`
+matches both "not set" filters (as expected, since its value is on the type)
+and is hidden directly, as reported in the notes. Filters applied to the view
+in the intended order with the intended colours:
+
+```
+IFC Audit - IFC parameters complete           visible=False  no override
+IFC Audit - Predefined Type set but no entity  visible=True  245,220,40
+IFC Audit - Export to IFC As not set           visible=True  255,140,0
+IFC Audit - IFC Predefined Type not set        visible=True  255,140,0
+```
+
+The 30 elements a collector reports as visible in that view are 26 cameras,
+one view extent element and 3 wall openings - collector artifacts and a
+non-audited category, no model geometry. Correct, since the model now has zero
+findings.
+
+**Model state note.** Between the first full audit and these tests, all 30
+blank elements in the model were filled in, including the two that held
+`SHEAR` with no entity (now `IfcWall` + `SHEAR`). So the audit's findings were
+acted on, and filter mode could not be observed against a model that still had
+findings - hence the rolled-back transaction above as the substitute.
+
+### Still unobserved in filter mode
+
+- a model that genuinely contains findings at scan time; every observation
+  above came from a rolled-back edit
+- the invalid-value warning path, since this model has no invalid values
+- removing audit filters from a view on the update-existing path
+- a category that cannot filter on the IFC parameters being dropped
+
 ---
 
 ## 2. Not yet executed
@@ -385,6 +477,15 @@ Built and verified in 1.10, but these specific paths have not run:
 - **elements that refuse an override or a hide.** The per-element fallback in
   `_hide_passing_elements` did not trigger: the batch `HideElements` call
   succeeded for all 4,974 elements at once.
+
+### Ribbon placement and icon
+
+The button was moved from its own `IFC Management.tab` into the
+`IFC Management` panel of the existing `Mytools.tab`, and a 96x96 RGBA
+`icon.png` was added to match the other buttons in this extension. The folder
+layout and the bundle files are correct, and the icon was inspected at both
+96px and the ~32px the ribbon actually draws. Neither has been seen in Revit:
+that needs a pyRevit reload, which cannot be driven from here.
 
 ### The windows
 

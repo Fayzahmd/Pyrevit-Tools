@@ -132,6 +132,21 @@ USE_FALLBACK_ENUMS = True
 VIEW_NAME_BASE   = 'IFC Audit - Missing Parameters'
 LEGEND_VIEW_NAME = 'IFC Audit - Legend'
 
+# Prefix for the view filters created in filter mode. Filters are project-wide
+# elements, so a recognisable prefix keeps them together in the filter list.
+FILTER_NAME_PREFIX = 'IFC Audit - '
+
+# Drive the generated view with Revit view filters instead of per-element
+# overrides. Filters are re-evaluated by Revit continuously, so an element
+# leaves the view as soon as its IFC parameters are filled in - the view stays
+# correct without re-running the audit.
+#
+# The trade-off: a filter is a rule over parameter values, so it can express
+# "not set" exactly but cannot express "set to an invalid value". In filter
+# mode the view shows what is unfilled, not what is wrong, and the audit table
+# and CSV remain the authoritative record. See ifc_filters for the detail.
+USE_VIEW_FILTERS_DEFAULT = True
+
 # Create a drafting view holding the colour key alongside the 3D view.
 CREATE_LEGEND_VIEW = True
 
